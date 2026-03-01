@@ -1,11 +1,16 @@
 # ios_logger_arcore
 
-Android MVP logger inspired by `Varvrar/ios_logger` with a minimal UI:
+Android logger inspired by `Varvrar/ios_logger` with a camera-first UI (`EasyCam`):
 
-1. Resolution picker
-2. START button
-3. STOP button
-4. (Manual focus intentionally omitted in MVP)
+1. Fit-style preview (no crop-to-fill), with black letterbox margins when needed
+2. Large centered record control (morphs between idle and recording states)
+3. Settings button at the bottom-left of the control area
+4. Recording status dot + tracking state indicator
+
+Notes:
+
+- There is no torch toggle in-app.
+- Resolution is selected automatically from the full capture pipeline (highest supported back-camera recorder size).
 
 ## What this app currently records
 
@@ -14,22 +19,27 @@ Each recording session creates a timestamped folder under app-private external s
 - `Frames.m4v` – recorded camera video
 - `Frames.txt` – `time_s,frame_index,fx,fy,cx,cy` (or `time_s,frame_index` if intrinsics unavailable)
 - `ARposes.txt` – `time_s,tx,ty,tz,qw,qx,qy,qz`
+- `Accel.txt`
+- `Gyro.txt`
+- `GPS.txt`
+- `Head.txt`
+- `Motion.txt`
+- `MotARH.txt`
+- `MotMagnFull.txt`
+- `Magnet.txt`
+- `CaptureEvents.txt` – capture lifecycle/debug events (`timestamp,event,details`)
 
 ## ARCore mode (strict, no fallback)
 
 - Pose source is strict ARCore camera pose only.
 - If ARCore tracking is unavailable/lost, recording stops instead of writing zero/placeholder poses.
 - Capture pipeline uses ARCore Shared Camera + Camera2 to avoid ARCore/CameraX camera ownership conflicts.
-- During this migration, in-app preview may be unavailable while recording, but dataset/video/pose capture remains active.
+- Preview is active while the app is open (idle preview before recording + preview during recording).
+- Pose continuity mitigation is applied on relocalization/reset-like jumps via world re-anchoring.
 
 ### Important current limitation
 
-`ARposes.txt` is now **ARCore-first**:
-
-- Primary source: ARCore camera pose (`tx,ty,tz` + quaternion)
-- Fallback: rotation-vector orientation with zero translation when ARCore is unavailable/inactive on device
-
-So on ARCore-capable devices you should get true 6DoF pose trajectories.
+This app requires an ARCore-capable device and active tracking for capture; there is no non-AR fallback pose path.
 
 ## Open in Android Studio
 
