@@ -1,0 +1,5 @@
+00000 -0.165729 0.052273 0.091203 -0.263325 0.027277 0.014350 0.964215
+# format: frame_id tx ty tz qx qy qz qw
+# source ARposes row:
+# 1612099151.512330,-0.165729,0.052273,0.091203,0.964215,-0.263325,0.027277,0.014350
+# reordered quaternion from (qw,qx,qy,qz) to (qx,qy,qz,qw)
