@@ -14,37 +14,17 @@ import kotlin.math.sqrt
  * - quaternion scalar-first in output file
  *
  * IMPORTANT:
- * ARCore and ARKit camera/world conventions are very close for this use-case.
- * The basis-change matrix below is intentionally identity unless we have
- * verified evidence that a fixed axis remap is required.
+ * Runtime capture must emit downstream-compatible conventions directly in
+ * ARposes* files (no post-processing step required).
  */
 object ArKitConventionMapper {
-    /**
-     * Basis transform from ARCore coordinates to ARKit coordinates.
-     *
-     * If future audits prove a fixed axis remap is required, update this one
-     * matrix and all pose outputs will follow automatically.
-     */
+    // Baseline (h000) components.
     private val arCoreToArKitBasis: Array<DoubleArray> = arrayOf(
         doubleArrayOf(1.0, 0.0, 0.0),
         doubleArrayOf(0.0, 1.0, 0.0),
         doubleArrayOf(0.0, 0.0, 1.0),
     )
-
     private val arCoreToArKitBasisT: Array<DoubleArray> = transpose3x3(arCoreToArKitBasis)
-
-    /**
-     * Fixed camera-frame correction from ARCore camera axes to the dataset's
-     * ARKit-compatible camera axes expected by downstream processing.
-     *
-     * Derived from three controlled captures:
-     * 1) lateral sweep (expected local x dominance)
-     * 2) vertical sweep (expected local y dominance)
-     * 3) forward sweep (expected local -z / forward dominance)
-     *
-     * Without this correction, x/y are effectively swapped in local-motion
-     * diagnostics. A -90° roll around camera Z aligns all three tests.
-     */
     private val arCoreCameraToArKitCamera: Array<DoubleArray> = rotationZ3x3(degrees = -90.0)
     private val arCoreCameraToArKitCameraT: Array<DoubleArray> = transpose3x3(arCoreCameraToArKitCamera)
 
@@ -66,20 +46,20 @@ object ArKitConventionMapper {
             qw = normalized[3],
         )
 
-        // Change basis for both world and camera coordinates:
-        // R_arkit = B * R_arcore * B^T,  t_arkit = B * t_arcore
-        val rWcArKitBasis = multiply3x3(multiply3x3(arCoreToArKitBasis, rWcArCore), arCoreToArKitBasisT)
-        // Camera-frame convention correction: R_new = R_old * C^T
-        val rWcArKit = multiply3x3(rWcArKitBasis, arCoreCameraToArKitCameraT)
-        val tArKit = multiply3x1(arCoreToArKitBasis, doubleArrayOf(tx, ty, tz))
-
-        val mappedQuat = rotation3x3ToQuaternion(rWcArKit)
+        // Baseline h000 mapping.
+        val rWcBaselineBasis = multiply3x3(multiply3x3(arCoreToArKitBasis, rWcArCore), arCoreToArKitBasisT)
+        val rWcBaseline = multiply3x3(rWcBaselineBasis, arCoreCameraToArKitCameraT)
+        val tBaseline = multiply3x1(arCoreToArKitBasis, doubleArrayOf(tx, ty, tz))
+        val mappedQuat = rotation3x3ToQuaternion(rWcBaseline)
 
         return PoseSample(
             timestampSeconds = timestampSeconds,
-            tx = tArKit[0],
-            ty = tArKit[1],
-            tz = tArKit[2],
+            // Translation-only lateral sign correction: image-aligned right/left motion
+            // is opposite of baseline exported X, so flip X while keeping Y/Z and
+            // quaternion mapping unchanged for axis-by-axis validation.
+            tx = -tBaseline[0],
+            ty = tBaseline[1],
+            tz = tBaseline[2],
             qw = mappedQuat[3],
             qx = mappedQuat[0],
             qy = mappedQuat[1],
@@ -186,4 +166,5 @@ object ArKitConventionMapper {
             doubleArrayOf(0.0, 0.0, 1.0),
         )
     }
+
 }

@@ -22,12 +22,14 @@ import android.opengl.GLES20
 import android.util.Log
 import android.util.Size
 import android.view.Surface
+import com.google.ar.core.Anchor
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import com.google.ar.core.exceptions.CameraNotAvailableException
 import java.io.File
+import java.util.Locale
 import java.util.EnumSet
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -51,7 +53,19 @@ class SharedArCoreCaptureEngine(
     private val onTrackingState: (String) -> Unit,
     private val onStarted: () -> Unit,
     private val onStopped: (String?) -> Unit,
+    private val poseMode: PoseMode = PoseMode.LEGACY_STITCH,
 ) {
+    private enum class TrackingPipelineState {
+        WARMUP,
+        STABLE_TRACKING,
+        RECOVERING,
+    }
+
+    enum class PoseMode {
+        LEGACY_STITCH,
+        ANCHOR_RELATIVE,
+    }
+
     private val tag = "SharedArCoreCapture"
 
     private val started = AtomicBoolean(false)
@@ -75,6 +89,7 @@ class SharedArCoreCaptureEngine(
     private var eglSurface: EGLSurface? = null
     private var cameraTextureId: Int = -1
 
+    private val sourceFrameCounter = AtomicLong(0)
     private val frameCounter = AtomicLong(0)
     private val missingPoseCounter = AtomicInteger(0)
     private val updateErrorCounter = AtomicInteger(0)
@@ -88,8 +103,18 @@ class SharedArCoreCaptureEngine(
     private var previousRawArKitPose: PoseSample? = null
     private var previousExportedPose: PoseSample? = null
     private var worldReanchorTransform: RigidTransform? = null
+    private var captureAnchor: Anchor? = null
+    private var anchorComparisonDisabled: Boolean = false
+    private var firstAnchorEventWritten: Boolean = false
     private var firstFrameEventWritten: Boolean = false
     private var firstPoseEventWritten: Boolean = false
+    private var trackingPipelineState: TrackingPipelineState = TrackingPipelineState.WARMUP
+    private var trackingConsecutiveFrames: Int = 0
+    private var recoveringConsecutiveFrames: Int = 0
+    private var previousAnchorComparisonPose: PoseSample? = null
+    private var anchorHealthyStreak: Int = 0
+    private var anchorUnhealthyStreak: Int = 0
+    private var anchorCreateCooldownFrames: Int = 0
 
     private data class RigidTransform(
         val tx: Double,
@@ -106,12 +131,33 @@ class SharedArCoreCaptureEngine(
         val rotationDegrees: Double,
     )
 
+    private data class TranslationDeltaBreakdown(
+        val worldDx: Double,
+        val worldDy: Double,
+        val worldDz: Double,
+        val cameraDx: Double,
+        val cameraDy: Double,
+        val cameraDz: Double,
+    )
+
     private companion object {
+        private const val FIRST_PRINCIPLES_POSE_VALIDATION_MODE = false
+        private const val ENABLE_CONTINUITY_REANCHOR = !FIRST_PRINCIPLES_POSE_VALIDATION_MODE
+        private const val ENABLE_ANCHOR_COMPARISON = !FIRST_PRINCIPLES_POSE_VALIDATION_MODE
+        private const val ALLOW_JUMP_ONLY_REANCHOR = false
+
         private const val HARD_TRANSLATION_RESET_M = 0.35
         private const val HARD_ROTATION_RESET_DEG = 20.0
         private const val COMBINED_TRANSLATION_RESET_M = 0.15
         private const val COMBINED_ROTATION_RESET_DEG = 8.0
         private const val POSE_INSTRUMENTATION_LOG_EVERY_FRAME = true
+        private const val STABLE_TRACKING_MIN_FRAMES = 12
+        private const val RECOVERING_STOP_FRAMES = 120
+        private const val ANCHOR_CREATE_MIN_STABLE_FRAMES = 18
+        private const val ANCHOR_CREATE_COOLDOWN_FRAMES = 45
+        private const val ANCHOR_MAX_UNHEALTHY_STREAK = 24
+        private const val ANCHOR_MAX_FRAME_DELTA_TRANSLATION_M = 0.09
+        private const val ANCHOR_MAX_FRAME_DELTA_ROTATION_DEG = 6.5
         private const val TRANSFORM_CHAIN_ID =
             "T_wc_arcore_raw -> B_arcore_to_arkit * T_wc * B^T -> C_cam_roll_z_m90 -> T_wc_arkit_raw -> T_world_reanchor -> T_wc_export"
     }
@@ -225,16 +271,7 @@ class SharedArCoreCaptureEngine(
         val session = arSession ?: return
 
         val ts = TimeUtils.toUnixSeconds(timestampNanos, bootToUnixOffsetSeconds)
-        val frame = frameCounter.getAndIncrement()
-
-        if (!firstFrameEventWritten) {
-            datasetWriter.writeEvent(
-                tsUnixSeconds = ts,
-                event = "first_frame_seen",
-                details = "frameIndex=$frame"
-            )
-            firstFrameEventWritten = true
-        }
+        val sourceFrame = sourceFrameCounter.getAndIncrement()
 
         val arFrame = try {
             makeGlCurrent()
@@ -246,7 +283,18 @@ class SharedArCoreCaptureEngine(
             return
         } catch (e: Throwable) {
             val errors = updateErrorCounter.incrementAndGet()
-            datasetWriter.writeFrame(ts, frame, null)
+            if (poseMode == PoseMode.LEGACY_STITCH) {
+                val frame = frameCounter.getAndIncrement()
+                datasetWriter.writeFrame(ts, frame, null)
+                if (!firstFrameEventWritten) {
+                    datasetWriter.writeEvent(
+                        tsUnixSeconds = ts,
+                        event = "first_frame_seen",
+                        details = "frameIndex=$frame,sourceFrameIndex=$sourceFrame"
+                    )
+                    firstFrameEventWritten = true
+                }
+            }
             onTrackingState("PAUSED")
             if (errors % 10 == 0) {
                 Log.w(tag, "processFrame(): session.update failed $errors times (${e::class.java.simpleName}: ${e.message})")
@@ -287,17 +335,42 @@ class SharedArCoreCaptureEngine(
             null
         }
 
-        datasetWriter.writeFrame(ts, frame, intrinsics)
+        if (poseMode == PoseMode.ANCHOR_RELATIVE) {
+            processFrameAnchorMode(
+                session = session,
+                ts = ts,
+                sourceFrame = sourceFrame,
+                camera = camera,
+                intrinsics = intrinsics,
+            )
+        } else {
+            processFrameLegacyMode(
+                arFrameTimestampNanos = arFrame.timestamp,
+                ts = ts,
+                sourceFrame = sourceFrame,
+                camera = camera,
+                intrinsics = intrinsics,
+            )
+        }
+    }
 
+    private fun processFrameAnchorMode(
+        session: Session,
+        ts: Double,
+        sourceFrame: Long,
+        camera: com.google.ar.core.Camera,
+        intrinsics: CameraIntrinsics?,
+    ) {
         if (camera.trackingState != TrackingState.TRACKING) {
-            if (previousTrackingState == TrackingState.TRACKING) {
-                pendingRelocalization = true
-                Log.w(tag, "Tracking transitioned TRACKING -> ${camera.trackingState}; will re-anchor on recovery")
-            }
-            previousTrackingState = camera.trackingState
-
             val elapsedMs = if (recordingStartElapsedNanos == 0L) 0L
             else (SystemClock.elapsedRealtimeNanos() - recordingStartElapsedNanos) / 1_000_000L
+
+            if (hadTracking) {
+                onStatus("Stopped: ARCore tracking lost (${camera.trackingState})")
+                Log.w(tag, "processFrame(): tracking lost after capture start (${camera.trackingState})")
+                stopInternal("tracking lost")
+                return
+            }
 
             if (!hadTracking && elapsedMs < 10_000L) {
                 onStatus("Waiting for ARCore tracking... (${camera.trackingState})")
@@ -306,8 +379,7 @@ class SharedArCoreCaptureEngine(
             }
 
             val misses = missingPoseCounter.incrementAndGet()
-            val threshold = if (hadTracking) 120 else 300
-            if (misses > threshold) {
+            if (misses > 300) {
                 onStatus("Stopped: ARCore tracking not active (${camera.trackingState})")
                 Log.w(
                     tag,
@@ -318,58 +390,75 @@ class SharedArCoreCaptureEngine(
             return
         }
 
-        val recoveredFromNonTracking = previousTrackingState != TrackingState.TRACKING
-        previousTrackingState = TrackingState.TRACKING
+        val cameraPose = camera.pose
+        if (captureAnchor == null) {
+            captureAnchor = try {
+                session.createAnchor(cameraPose)
+            } catch (t: Throwable) {
+                onStatus("Stopped: failed to create capture anchor (${t.message ?: t::class.java.simpleName})")
+                Log.e(tag, "processFrame(): failed to create anchor", t)
+                stopInternal("anchor create failure")
+                return
+            }
+
+            if (!firstAnchorEventWritten) {
+                datasetWriter.writeEvent(
+                    tsUnixSeconds = ts,
+                    event = "capture_anchor_created",
+                    details = "sourceFrameIndex=$sourceFrame"
+                )
+                firstAnchorEventWritten = true
+            }
+        }
+
+        val anchor = captureAnchor
+        if (anchor == null || anchor.trackingState != TrackingState.TRACKING) {
+            if (hadTracking) {
+                onStatus("Stopped: capture anchor tracking lost")
+                Log.w(tag, "processFrame(): capture anchor tracking lost after capture start")
+                stopInternal("anchor tracking lost")
+                return
+            }
+
+            val misses = missingPoseCounter.incrementAndGet()
+            onStatus("Waiting for capture anchor tracking...")
+            if (misses > 300) {
+                onStatus("Stopped: capture anchor tracking not active")
+                Log.w(tag, "processFrame(): anchor tracking not active for too long, misses=$misses")
+                stopInternal("anchor tracking lost")
+            }
+            return
+        }
 
         hadTracking = true
         missingPoseCounter.set(0)
 
-        val pose = camera.pose
-        val q = pose.rotationQuaternion // x, y, z, w
+        val frame = frameCounter.getAndIncrement()
+        datasetWriter.writeFrame(ts, frame, intrinsics)
+
+        if (!firstFrameEventWritten) {
+            datasetWriter.writeEvent(
+                tsUnixSeconds = ts,
+                event = "first_frame_seen",
+                details = "frameIndex=$frame,sourceFrameIndex=$sourceFrame"
+            )
+            firstFrameEventWritten = true
+        }
+
+        val poseRelativeToAnchor = anchor.pose.inverse().compose(cameraPose)
+        val q = poseRelativeToAnchor.rotationQuaternion // x, y, z, w
         val poseTsRaw = ts
         val poseTs = makePoseTimestampStrictlyIncreasing(poseTsRaw)
 
-        val arKitPose = ArKitConventionMapper.mapPose(
+        val exportedPose = ArKitConventionMapper.mapPose(
             timestampSeconds = poseTs,
-            tx = pose.tx().toDouble(),
-            ty = pose.ty().toDouble(),
-            tz = pose.tz().toDouble(),
+            tx = poseRelativeToAnchor.tx().toDouble(),
+            ty = poseRelativeToAnchor.ty().toDouble(),
+            tz = poseRelativeToAnchor.tz().toDouble(),
             qx = q[0].toDouble(),
             qy = q[1].toDouble(),
             qz = q[2].toDouble(),
             qw = q[3].toDouble(),
-        )
-
-        val rawDelta = computePoseDelta(previousRawArKitPose, arKitPose)
-        val jumpSuspected = isLikelyWorldReset(rawDelta)
-        val resetDetected = pendingRelocalization || recoveredFromNonTracking || jumpSuspected
-
-        if (resetDetected && previousExportedPose != null) {
-            worldReanchorTransform = computeAlignmentTransform(
-                fromCurrentRawPose = arKitPose,
-                toTargetExportPose = previousExportedPose!!,
-            )
-            val resets = relocalizationCounter.incrementAndGet()
-            Log.w(
-                tag,
-                "Pose continuity reset detected (#$resets): sourceFrame=${arFrame.timestamp}, " +
-                    "trackingRecovered=$recoveredFromNonTracking, pendingRelocalization=$pendingRelocalization, " +
-                    "jumpSuspected=$jumpSuspected, rawDelta_m=${rawDelta?.translationMeters}, " +
-                    "rawDelta_deg=${rawDelta?.rotationDegrees}"
-            )
-        }
-        pendingRelocalization = false
-
-        val exportedPose = applyTransform(worldReanchorTransform, arKitPose)
-        val exportedDelta = computePoseDelta(previousExportedPose, exportedPose)
-
-        logPoseInstrumentation(
-            sourceFrameIndex = frame,
-            sourceFrameTimestampNanos = arFrame.timestamp,
-            trackingState = camera.trackingState,
-            relocalizationOrReset = resetDetected,
-            rawDelta = rawDelta,
-            exportedDelta = exportedDelta,
         )
 
         datasetWriter.writePose(
@@ -387,13 +476,319 @@ class SharedArCoreCaptureEngine(
             datasetWriter.writeEvent(
                 tsUnixSeconds = exportedPose.timestampSeconds,
                 event = "first_pose_written",
-                details = "frameIndex=$frame"
+                details = String.format(
+                    Locale.US,
+                    "frameIndex=%d,tx=%.6f,ty=%.6f,tz=%.6f,qw=%.6f,qx=%.6f,qy=%.6f,qz=%.6f",
+                    frame,
+                    exportedPose.tx,
+                    exportedPose.ty,
+                    exportedPose.tz,
+                    exportedPose.qw,
+                    exportedPose.qx,
+                    exportedPose.qy,
+                    exportedPose.qz,
+                )
+            )
+            firstPoseEventWritten = true
+        }
+    }
+
+    private fun processFrameLegacyMode(
+        arFrameTimestampNanos: Long,
+        ts: Double,
+        sourceFrame: Long,
+        camera: com.google.ar.core.Camera,
+        intrinsics: CameraIntrinsics?,
+    ) {
+        val frame = frameCounter.getAndIncrement()
+        datasetWriter.writeFrame(ts, frame, intrinsics)
+
+        if (!firstFrameEventWritten) {
+            datasetWriter.writeEvent(
+                tsUnixSeconds = ts,
+                event = "first_frame_seen",
+                details = "frameIndex=$frame,sourceFrameIndex=$sourceFrame"
+            )
+            firstFrameEventWritten = true
+        }
+
+        if (anchorCreateCooldownFrames > 0) {
+            anchorCreateCooldownFrames -= 1
+        }
+
+        if (camera.trackingState != TrackingState.TRACKING) {
+            if (previousTrackingState == TrackingState.TRACKING) {
+                pendingRelocalization = true
+                Log.w(tag, "Tracking transitioned TRACKING -> ${camera.trackingState}; will re-anchor on recovery")
+            }
+            transitionTrackingPipelineState(TrackingPipelineState.RECOVERING, ts)
+            trackingConsecutiveFrames = 0
+            recoveringConsecutiveFrames += 1
+            previousTrackingState = camera.trackingState
+
+            val elapsedMs = if (recordingStartElapsedNanos == 0L) 0L
+            else (SystemClock.elapsedRealtimeNanos() - recordingStartElapsedNanos) / 1_000_000L
+
+            if (!hadTracking && elapsedMs < 10_000L) {
+                onStatus("Waiting for ARCore tracking... (${camera.trackingState})")
+                missingPoseCounter.set(0)
+                return
+            }
+
+            val misses = missingPoseCounter.incrementAndGet()
+            val threshold = if (hadTracking) RECOVERING_STOP_FRAMES else 300
+            if (misses > threshold) {
+                onStatus("Stopped: ARCore tracking not active (${camera.trackingState})")
+                Log.w(
+                    tag,
+                    "processFrame(): tracking not active for too long (${camera.trackingState}), misses=$misses, elapsedMs=$elapsedMs"
+                )
+                stopInternal("tracking lost")
+            }
+            return
+        }
+
+        val recoveredFromNonTracking = previousTrackingState != TrackingState.TRACKING
+        previousTrackingState = TrackingState.TRACKING
+
+        trackingConsecutiveFrames += 1
+        recoveringConsecutiveFrames = 0
+
+        if (!hadTracking && trackingConsecutiveFrames >= STABLE_TRACKING_MIN_FRAMES) {
+            transitionTrackingPipelineState(TrackingPipelineState.STABLE_TRACKING, ts)
+        } else if (hadTracking && recoveredFromNonTracking) {
+            transitionTrackingPipelineState(TrackingPipelineState.RECOVERING, ts)
+        }
+
+        hadTracking = true
+        missingPoseCounter.set(0)
+
+        val pose = camera.pose
+        val q = pose.rotationQuaternion // x, y, z, w
+        val poseTsRaw = ts
+        val poseTs = makePoseTimestampStrictlyIncreasing(poseTsRaw)
+
+        // Secondary anchor-relative output from the same capture for A/B comparison.
+        if (ENABLE_ANCHOR_COMPARISON && !anchorComparisonDisabled && captureAnchor == null &&
+            trackingConsecutiveFrames >= ANCHOR_CREATE_MIN_STABLE_FRAMES &&
+            anchorCreateCooldownFrames == 0
+        ) {
+            captureAnchor = try {
+                arSession?.createAnchor(pose)
+            } catch (_: Throwable) {
+                anchorComparisonDisabled = true
+                null
+            }
+
+            if (captureAnchor != null && !firstAnchorEventWritten) {
+                datasetWriter.writeEvent(
+                    tsUnixSeconds = ts,
+                    event = "capture_anchor_created",
+                    details = "sourceFrameIndex=$sourceFrame"
+                )
+                firstAnchorEventWritten = true
+            }
+
+            if (captureAnchor == null) {
+                anchorCreateCooldownFrames = ANCHOR_CREATE_COOLDOWN_FRAMES
+            }
+        }
+
+        val comparisonAnchor = captureAnchor
+        if (ENABLE_ANCHOR_COMPARISON && comparisonAnchor != null && comparisonAnchor.trackingState == TrackingState.TRACKING) {
+            val poseRelativeToAnchor = comparisonAnchor.pose.inverse().compose(pose)
+            val aq = poseRelativeToAnchor.rotationQuaternion // x, y, z, w
+            val anchorExportedPose = ArKitConventionMapper.mapPose(
+                timestampSeconds = poseTs,
+                tx = poseRelativeToAnchor.tx().toDouble(),
+                ty = poseRelativeToAnchor.ty().toDouble(),
+                tz = poseRelativeToAnchor.tz().toDouble(),
+                qx = aq[0].toDouble(),
+                qy = aq[1].toDouble(),
+                qz = aq[2].toDouble(),
+                qw = aq[3].toDouble(),
+            )
+
+            val anchorDelta = computePoseDelta(previousAnchorComparisonPose, anchorExportedPose)
+            val anchorHealthy = anchorDelta == null ||
+                (anchorDelta.translationMeters <= ANCHOR_MAX_FRAME_DELTA_TRANSLATION_M &&
+                    anchorDelta.rotationDegrees <= ANCHOR_MAX_FRAME_DELTA_ROTATION_DEG)
+
+            if (anchorHealthy) {
+                anchorHealthyStreak += 1
+                anchorUnhealthyStreak = 0
+            } else {
+                anchorUnhealthyStreak += 1
+                anchorHealthyStreak = 0
+            }
+
+            if (!anchorHealthy && anchorUnhealthyStreak == ANCHOR_MAX_UNHEALTHY_STREAK) {
+                datasetWriter.writeEvent(
+                    tsUnixSeconds = anchorExportedPose.timestampSeconds,
+                    event = "anchor_health_unstable",
+                    details = String.format(
+                        Locale.US,
+                        "unhealthy_streak=%d,max_delta_m=%.4f,max_delta_deg=%.2f,pose_mode=%s",
+                        anchorUnhealthyStreak,
+                        ANCHOR_MAX_FRAME_DELTA_TRANSLATION_M,
+                        ANCHOR_MAX_FRAME_DELTA_ROTATION_DEG,
+                        poseMode.name,
+                    )
+                )
+                try {
+                    captureAnchor?.detach()
+                } catch (_: Throwable) {
+                    // ignore
+                }
+                captureAnchor = null
+                previousAnchorComparisonPose = null
+                anchorCreateCooldownFrames = ANCHOR_CREATE_COOLDOWN_FRAMES
+                anchorUnhealthyStreak = 0
+            } else {
+                previousAnchorComparisonPose = anchorExportedPose
+            }
+        } else if (ENABLE_ANCHOR_COMPARISON && comparisonAnchor != null && comparisonAnchor.trackingState != TrackingState.TRACKING) {
+            anchorUnhealthyStreak += 1
+            if (anchorUnhealthyStreak >= ANCHOR_MAX_UNHEALTHY_STREAK) {
+                try {
+                    comparisonAnchor.detach()
+                } catch (_: Throwable) {
+                    // ignore
+                }
+                captureAnchor = null
+                previousAnchorComparisonPose = null
+                anchorCreateCooldownFrames = ANCHOR_CREATE_COOLDOWN_FRAMES
+                anchorUnhealthyStreak = 0
+                datasetWriter.writeEvent(
+                    tsUnixSeconds = ts,
+                    event = "anchor_tracking_lost_reset",
+                    details = "pose_mode=${poseMode.name}"
+                )
+            }
+        }
+
+        val arKitPose = ArKitConventionMapper.mapPose(
+            timestampSeconds = poseTs,
+            tx = pose.tx().toDouble(),
+            ty = pose.ty().toDouble(),
+            tz = pose.tz().toDouble(),
+            qx = q[0].toDouble(),
+            qy = q[1].toDouble(),
+            qz = q[2].toDouble(),
+            qw = q[3].toDouble(),
+        )
+
+        val rawDelta = computePoseDelta(previousRawArKitPose, arKitPose)
+        val jumpSuspected = isLikelyWorldReset(rawDelta)
+        val recoverySettled = trackingConsecutiveFrames >= STABLE_TRACKING_MIN_FRAMES
+        val recoveryResetCandidate = (pendingRelocalization && recoverySettled) ||
+            (recoveredFromNonTracking && recoverySettled)
+        val jumpOnlyResetCandidate = jumpSuspected && !pendingRelocalization && !recoveredFromNonTracking
+        val resetDetected = ENABLE_CONTINUITY_REANCHOR && (
+            recoveryResetCandidate ||
+                (ALLOW_JUMP_ONLY_REANCHOR && jumpOnlyResetCandidate)
+            )
+
+        if (resetDetected && previousExportedPose != null) {
+            worldReanchorTransform = computeAlignmentTransform(
+                fromCurrentRawPose = arKitPose,
+                toTargetExportPose = previousExportedPose!!,
+            )
+            val resets = relocalizationCounter.incrementAndGet()
+            Log.w(
+                tag,
+                "Pose continuity reset detected (#$resets): sourceFrame=${arFrameTimestampNanos}, " +
+                    "trackingRecovered=$recoveredFromNonTracking, pendingRelocalization=$pendingRelocalization, " +
+                    "jumpSuspected=$jumpSuspected, rawDelta_m=${rawDelta?.translationMeters}, " +
+                    "rawDelta_deg=${rawDelta?.rotationDegrees}"
+            )
+            transitionTrackingPipelineState(TrackingPipelineState.STABLE_TRACKING, exportedPoseTsForTransition(poseTs))
+            datasetWriter.writeEvent(
+                tsUnixSeconds = poseTs,
+                event = "tracking_relocalized",
+                details = String.format(
+                    Locale.US,
+                    "relocalization_count=%d,recoveredFromNonTracking=%s,pendingRelocalization=%s,jumpSuspected=%s,jumpOnlyResetCandidate=%s,allowJumpOnly=%s,pose_mode=%s",
+                    resets,
+                    recoveredFromNonTracking,
+                    pendingRelocalization,
+                    jumpSuspected,
+                    jumpOnlyResetCandidate,
+                    ALLOW_JUMP_ONLY_REANCHOR,
+                    poseMode.name,
+                )
+            )
+        }
+        if (recoverySettled) {
+            pendingRelocalization = false
+            transitionTrackingPipelineState(TrackingPipelineState.STABLE_TRACKING, poseTs)
+        }
+
+        val exportedPose = if (ENABLE_CONTINUITY_REANCHOR) {
+            applyTransform(worldReanchorTransform, arKitPose)
+        } else {
+            arKitPose
+        }
+        val exportedDelta = computePoseDelta(previousExportedPose, exportedPose)
+        val exportedTranslationBreakdown = computeTranslationDeltaBreakdown(previousExportedPose, exportedPose)
+
+        logPoseInstrumentation(
+            sourceFrameIndex = sourceFrame,
+            sourceFrameTimestampNanos = arFrameTimestampNanos,
+            trackingState = camera.trackingState,
+            relocalizationOrReset = resetDetected,
+            rawDelta = rawDelta,
+            exportedDelta = exportedDelta,
+            exportedTranslationBreakdown = exportedTranslationBreakdown,
+        )
+
+        datasetWriter.writePose(
+            exportedPose.timestampSeconds,
+            exportedPose.tx,
+            exportedPose.ty,
+            exportedPose.tz,
+            exportedPose.qw,
+            exportedPose.qx,
+            exportedPose.qy,
+            exportedPose.qz,
+        )
+
+        if (!firstPoseEventWritten) {
+            datasetWriter.writeEvent(
+                tsUnixSeconds = exportedPose.timestampSeconds,
+                event = "first_pose_written",
+                details = String.format(
+                    Locale.US,
+                    "frameIndex=%d,tx=%.6f,ty=%.6f,tz=%.6f,qw=%.6f,qx=%.6f,qy=%.6f,qz=%.6f",
+                    frame,
+                    exportedPose.tx,
+                    exportedPose.ty,
+                    exportedPose.tz,
+                    exportedPose.qw,
+                    exportedPose.qx,
+                    exportedPose.qy,
+                    exportedPose.qz,
+                )
             )
             firstPoseEventWritten = true
         }
 
         previousRawArKitPose = arKitPose
         previousExportedPose = exportedPose
+    }
+
+    private fun exportedPoseTsForTransition(poseTs: Double): Double = poseTs
+
+    private fun transitionTrackingPipelineState(newState: TrackingPipelineState, tsUnixSeconds: Double) {
+        if (trackingPipelineState == newState) return
+        val oldState = trackingPipelineState
+        trackingPipelineState = newState
+        datasetWriter.writeEvent(
+            tsUnixSeconds = tsUnixSeconds,
+            event = "tracking_fsm_transition",
+            details = "from=${oldState.name},to=${newState.name},pose_mode=${poseMode.name}"
+        )
+        Log.i(tag, "tracking_fsm_transition: ${oldState.name} -> ${newState.name}")
     }
 
     private fun mapIntrinsicsToOutputResolution(
@@ -552,21 +947,36 @@ class SharedArCoreCaptureEngine(
             started.set(true)
             recordingStartElapsedNanos = SystemClock.elapsedRealtimeNanos()
             hadTracking = false
+            sourceFrameCounter.set(0)
+            frameCounter.set(0)
             lastPoseTimestampSeconds = Double.NEGATIVE_INFINITY
             adjustedPoseTimestampCounter.set(0)
-            missingPoseCounter.set(0)
             relocalizationCounter.set(0)
+            missingPoseCounter.set(0)
             previousTrackingState = null
             pendingRelocalization = false
             previousRawArKitPose = null
             previousExportedPose = null
             worldReanchorTransform = null
+            captureAnchor = null
+            anchorComparisonDisabled = false
+            if (!ENABLE_ANCHOR_COMPARISON) {
+                anchorComparisonDisabled = true
+            }
+            trackingPipelineState = TrackingPipelineState.WARMUP
+            trackingConsecutiveFrames = 0
+            recoveringConsecutiveFrames = 0
+            previousAnchorComparisonPose = null
+            anchorHealthyStreak = 0
+            anchorUnhealthyStreak = 0
+            anchorCreateCooldownFrames = 0
+            firstAnchorEventWritten = false
             firstFrameEventWritten = false
             firstPoseEventWritten = false
             datasetWriter.writeEvent(
                 tsUnixSeconds = System.currentTimeMillis() / 1000.0,
                 event = "engine_started",
-                details = "shared_camera=true"
+                details = "shared_camera=true,pose_mode=${poseMode.name}"
             )
             onStarted()
             onTrackingState("STARTED")
@@ -637,6 +1047,14 @@ class SharedArCoreCaptureEngine(
         }
 
         try {
+            captureAnchor?.detach()
+        } catch (_: Throwable) {
+            // ignore
+        } finally {
+            captureAnchor = null
+        }
+
+        try {
             arSession?.pause()
             arSession?.close()
         } catch (_: Throwable) {
@@ -676,6 +1094,7 @@ class SharedArCoreCaptureEngine(
         relocalizationOrReset: Boolean,
         rawDelta: PoseDelta?,
         exportedDelta: PoseDelta?,
+        exportedTranslationBreakdown: TranslationDeltaBreakdown?,
     ) {
         if (!POSE_INSTRUMENTATION_LOG_EVERY_FRAME && !relocalizationOrReset) return
 
@@ -684,11 +1103,46 @@ class SharedArCoreCaptureEngine(
         val expDm = exportedDelta?.translationMeters ?: 0.0
         val expDdeg = exportedDelta?.rotationDegrees ?: 0.0
 
+        val worldDx = exportedTranslationBreakdown?.worldDx ?: 0.0
+        val worldDy = exportedTranslationBreakdown?.worldDy ?: 0.0
+        val worldDz = exportedTranslationBreakdown?.worldDz ?: 0.0
+        val cameraDx = exportedTranslationBreakdown?.cameraDx ?: 0.0
+        val cameraDy = exportedTranslationBreakdown?.cameraDy ?: 0.0
+        val cameraDz = exportedTranslationBreakdown?.cameraDz ?: 0.0
+
         Log.i(
             tag,
             "pose_instrumentation frameIdx=$sourceFrameIndex srcFrameNs=$sourceFrameTimestampNanos " +
                 "tracking=$trackingState reset=$relocalizationOrReset chain='$TRANSFORM_CHAIN_ID' " +
-                "rawDelta_m=$rawDm rawDelta_deg=$rawDdeg exportedDelta_m=$expDm exportedDelta_deg=$expDdeg"
+                "rawDelta_m=$rawDm rawDelta_deg=$rawDdeg exportedDelta_m=$expDm exportedDelta_deg=$expDdeg " +
+                "exportedWorldDelta_xyz=($worldDx,$worldDy,$worldDz) " +
+                "exportedCameraLocalDelta_xyz=($cameraDx,$cameraDy,$cameraDz)"
+        )
+    }
+
+    private fun computeTranslationDeltaBreakdown(
+        previous: PoseSample?,
+        current: PoseSample,
+    ): TranslationDeltaBreakdown? {
+        if (previous == null) return null
+
+        val dx = current.tx - previous.tx
+        val dy = current.ty - previous.ty
+        val dz = current.tz - previous.tz
+
+        val qPrevWxyz = normalizeQuaternionWxyz(
+            doubleArrayOf(previous.qw, previous.qx, previous.qy, previous.qz)
+        )
+        val qPrevInv = conjugateQuaternionWxyz(qPrevWxyz)
+        val dCamera = rotateVectorByQuaternionWxyz(qPrevInv, doubleArrayOf(dx, dy, dz))
+
+        return TranslationDeltaBreakdown(
+            worldDx = dx,
+            worldDy = dy,
+            worldDz = dz,
+            cameraDx = dCamera[0],
+            cameraDy = dCamera[1],
+            cameraDz = dCamera[2],
         )
     }
 
@@ -799,11 +1253,17 @@ class SharedArCoreCaptureEngine(
         val q = normalizeQuaternionWxyz(qWxyz)
         val qv = doubleArrayOf(0.0, v[0], v[1], v[2])
         val qConj = conjugateQuaternionWxyz(q)
-        val out = multiplyQuaternionWxyz(multiplyQuaternionWxyz(q, qv), qConj)
+        // IMPORTANT: vector rotation must preserve vector magnitude.
+        // Do NOT normalize intermediate quaternion products here.
+        val out = multiplyQuaternionWxyzRaw(multiplyQuaternionWxyzRaw(q, qv), qConj)
         return doubleArrayOf(out[1], out[2], out[3])
     }
 
     private fun multiplyQuaternionWxyz(a: DoubleArray, b: DoubleArray): DoubleArray {
+        return normalizeQuaternionWxyz(multiplyQuaternionWxyzRaw(a, b))
+    }
+
+    private fun multiplyQuaternionWxyzRaw(a: DoubleArray, b: DoubleArray): DoubleArray {
         val aw = a[0]
         val ax = a[1]
         val ay = a[2]
@@ -812,13 +1272,11 @@ class SharedArCoreCaptureEngine(
         val bx = b[1]
         val by = b[2]
         val bz = b[3]
-        return normalizeQuaternionWxyz(
-            doubleArrayOf(
-                aw * bw - ax * bx - ay * by - az * bz,
-                aw * bx + ax * bw + ay * bz - az * by,
-                aw * by - ax * bz + ay * bw + az * bx,
-                aw * bz + ax * by - ay * bx + az * bw,
-            )
+        return doubleArrayOf(
+            aw * bw - ax * bx - ay * by - az * bz,
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
         )
     }
 

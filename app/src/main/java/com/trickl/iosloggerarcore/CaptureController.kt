@@ -18,12 +18,15 @@ import java.io.File
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
+import android.content.res.Configuration
 import kotlin.coroutines.resume
 
 class CaptureController(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
 ) {
+    private val poseMode = SharedArCoreCaptureEngine.PoseMode.LEGACY_STITCH
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var datasetWriter: DatasetWriter? = null
@@ -107,6 +110,7 @@ class CaptureController(
                     onStopped = { reason ->
                         stop(reason)
                     },
+                    poseMode = poseMode,
                 )
 
                 sharedEngine = engine
@@ -180,8 +184,9 @@ class CaptureController(
     }
 
     private suspend fun awaitPreviewSurface(textureView: TextureView, resolution: Size): Surface {
+        val previewBufferSize = choosePreviewBufferSize(textureView, resolution)
         if (textureView.isAvailable) {
-            textureView.surfaceTexture?.setDefaultBufferSize(resolution.width, resolution.height)
+            textureView.surfaceTexture?.setDefaultBufferSize(previewBufferSize.width, previewBufferSize.height)
             return Surface(textureView.surfaceTexture)
         }
 
@@ -207,8 +212,24 @@ class CaptureController(
             }
         }
 
-        surfaceTexture.setDefaultBufferSize(resolution.width, resolution.height)
+        surfaceTexture.setDefaultBufferSize(previewBufferSize.width, previewBufferSize.height)
         return Surface(surfaceTexture)
+    }
+
+    private fun choosePreviewBufferSize(textureView: TextureView, captureResolution: Size): Size {
+        val orientation = context.resources.configuration.orientation
+        val captureLandscape = captureResolution.width >= captureResolution.height
+        val viewPortrait = if (textureView.isAvailable && textureView.height > 0 && textureView.width > 0) {
+            textureView.height >= textureView.width
+        } else {
+            orientation == Configuration.ORIENTATION_PORTRAIT
+        }
+
+        return if (viewPortrait && captureLandscape) {
+            Size(captureResolution.height, captureResolution.width)
+        } else {
+            captureResolution
+        }
     }
 
     private fun ensureIdlePreviewIfNeeded() {

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 class ArKitConventionMapperTest {
@@ -22,9 +23,30 @@ class ArKitConventionMapperTest {
         )
 
         assertEquals(123.0, out.timestampSeconds, 1e-9)
-        assertEquals(1.25, out.tx, 1e-9)
+        assertEquals(-1.25, out.tx, 1e-9)
         assertEquals(-0.5, out.ty, 1e-9)
         assertEquals(2.0, out.tz, 1e-9)
+    }
+
+    @Test
+    fun mapPose_appliesBaselineCameraCorrection() {
+        val out = ArKitConventionMapper.mapPose(
+            timestampSeconds = 0.0,
+            tx = 0.0,
+            ty = 0.0,
+            tz = 0.0,
+            qx = 0.0,
+            qy = 0.0,
+            qz = 0.0,
+            qw = 1.0,
+        )
+
+        // Baseline mapping applies only camera correction Rz(+90°) to identity input.
+        val s = sqrt(0.5)
+        assertEquals(s, abs(out.qw), 1e-9)
+        assertEquals(0.0, out.qx, 1e-9)
+        assertEquals(0.0, out.qy, 1e-9)
+        assertEquals(s, abs(out.qz), 1e-9)
     }
 
     @Test

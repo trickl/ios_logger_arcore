@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +58,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.trickl.iosloggerarcore.ui.theme.IosLoggerArcoreTheme
 import kotlin.math.max
+import kotlin.math.min
 import android.view.TextureView
 
 class MainActivity : ComponentActivity() {
@@ -83,6 +85,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CaptureScreen(controller: CaptureController) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val isRecording by controller.isRecording.collectAsState()
     val status by controller.status.collectAsState()
     val trackingState by controller.trackingState.collectAsState()
@@ -130,7 +133,15 @@ private fun CaptureScreen(controller: CaptureController) {
         onDispose { if (isRecording) controller.stop() }
     }
 
-    val aspectRatio = selected.size.width.toFloat() / selected.size.height.toFloat()
+    val longSide = max(selected.size.width, selected.size.height).toFloat()
+    val shortSide = min(selected.size.width, selected.size.height).toFloat()
+    val portraitAspect = shortSide / longSide
+    val landscapeAspect = longSide / shortSide
+    val aspectRatio = if (configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+        portraitAspect
+    } else {
+        landscapeAspect
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
         Column(
