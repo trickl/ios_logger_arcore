@@ -23,12 +23,12 @@ object ArKitConventionMapper {
     private val arCoreCameraToArKitCamera: Array<DoubleArray> = rotationZ3x3(degrees = -90.0)
     private val arCoreCameraToArKitCameraT: Array<DoubleArray> = transpose3x3(arCoreCameraToArKitCamera)
     // Quaternion-compatible target camera basis in world coordinates:
-    // camera +X -> world -X, camera +Y -> world -Z, camera +Z -> world -Y.
+    // camera +X -> world -X, camera +Y -> world -Y, camera +Z -> world +Z.
     // Columns are camera axes in world frame, det = +1 (proper rotation).
     private val exportCameraBasisRemap: Array<DoubleArray> = arrayOf(
         doubleArrayOf(-1.0, 0.0, 0.0),
-        doubleArrayOf(0.0, 0.0, -1.0),
         doubleArrayOf(0.0, -1.0, 0.0),
+        doubleArrayOf(0.0, 0.0, 1.0),
     )
 
     fun mapPose(
