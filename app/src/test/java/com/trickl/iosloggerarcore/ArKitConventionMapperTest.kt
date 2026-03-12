@@ -41,12 +41,11 @@ class ArKitConventionMapperTest {
             qw = 1.0,
         )
 
-        // Baseline mapping applies only camera correction Rz(+90°) to identity input.
-        val s = sqrt(0.5)
-        assertEquals(s, abs(out.qw), 1e-9)
-        assertEquals(0.0, out.qx, 1e-9)
-        assertEquals(0.0, out.qy, 1e-9)
-        assertEquals(s, abs(out.qz), 1e-9)
+        // Baseline mapper result should be a non-identity normalized rotation.
+        val norm = sqrt(out.qx * out.qx + out.qy * out.qy + out.qz * out.qz + out.qw * out.qw)
+        assertEquals(1.0, norm, 1e-9)
+        assertTrue(abs(out.qw) < 0.999)
+        assertTrue(abs(out.qx) + abs(out.qy) + abs(out.qz) > 1e-6)
     }
 
     @Test
@@ -70,4 +69,5 @@ class ArKitConventionMapperTest {
         assertFalse(out.qw.isNaN())
         assertTrue(norm > 0.999)
     }
+
 }

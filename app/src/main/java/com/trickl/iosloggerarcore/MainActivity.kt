@@ -17,16 +17,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -58,8 +60,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.trickl.iosloggerarcore.ui.theme.IosLoggerArcoreTheme
 import kotlin.math.max
-import kotlin.math.min
-import android.view.TextureView
+import android.view.SurfaceView
 
 class MainActivity : ComponentActivity() {
     private lateinit var controller: CaptureController
@@ -92,7 +93,7 @@ private fun CaptureScreen(controller: CaptureController) {
     val recordedBytes by controller.recordedBytes.collectAsState()
     val datasetPath by controller.datasetPath.collectAsState()
 
-    val fullResolution = remember { CameraResolutionSelector.selectFullPipelineResolution(context) }
+    val fullResolution = remember { CameraResolutionSelector.selectIntrinsicsAbTestResolution(context) }
     val selected = remember {
         ResolutionOption(
             label = "${fullResolution.width}x${fullResolution.height}",
@@ -112,7 +113,7 @@ private fun CaptureScreen(controller: CaptureController) {
     var pendingStart by remember { mutableStateOf(false) }
     var settingsExpanded by remember { mutableStateOf(false) }
 
-    val previewView = remember { TextureView(context) }
+    val previewView = remember { SurfaceView(context) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -125,22 +126,19 @@ private fun CaptureScreen(controller: CaptureController) {
         pendingStart = false
     }
 
-    LaunchedEffect(selected, hasPermission, isRecording) {
+    LaunchedEffect(
+        selected,
+        hasPermission,
+        isRecording,
+        configuration.orientation,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+    ) {
         controller.updatePreview(previewView, selected.size, hasPermission)
     }
 
     DisposableEffect(Unit) {
         onDispose { if (isRecording) controller.stop() }
-    }
-
-    val longSide = max(selected.size.width, selected.size.height).toFloat()
-    val shortSide = min(selected.size.width, selected.size.height).toFloat()
-    val portraitAspect = shortSide / longSide
-    val landscapeAspect = longSide / shortSide
-    val aspectRatio = if (configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
-        portraitAspect
-    } else {
-        landscapeAspect
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
@@ -156,12 +154,39 @@ private fun CaptureScreen(controller: CaptureController) {
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                AndroidView(
-                    factory = { previewView },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(aspectRatio)
-                )
+                val longSide = max(selected.size.width, selected.size.height).toFloat()
+                val shortSide = if (longSide > 0f) minOf(selected.size.width, selected.size.height).toFloat() else 1f
+                val previewAspect = if (configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                    shortSide / longSide
+                } else {
+                    longSide / shortSide
+                }
+
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val parentAspect = if (maxHeight.value > 0f) {
+                        maxWidth.value / maxHeight.value
+                    } else {
+                        previewAspect
+                    }
+
+                    val previewModifier = if (parentAspect > previewAspect) {
+                        Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(previewAspect, matchHeightConstraintsFirst = true)
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(previewAspect)
+                    }
+
+                    AndroidView(
+                        factory = { previewView },
+                        modifier = previewModifier
+                    )
+                }
 
                 if (isRecording) {
                     Box(
@@ -229,7 +254,7 @@ private fun CaptureScreen(controller: CaptureController) {
                                     modifier = Modifier.testTag("resolutionPicker")
                                 )
                                 Text(
-                                    text = "(No app-side crop/scale preset)",
+                                    text = "(Intrinsics A/B mode: fixed 1920x1440)",
                                     color = Color(0xFFCCCCCC),
                                     fontSize = 12.sp
                                 )

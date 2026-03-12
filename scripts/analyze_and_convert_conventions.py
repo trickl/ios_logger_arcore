@@ -138,7 +138,23 @@ def load_pose_csv(path: Path) -> np.ndarray:
     if not rows:
         raise ValueError(f"No valid pose rows in {path}")
 
-    return np.asarray(rows, dtype=np.float64)
+    arr = np.asarray(rows, dtype=np.float64)
+
+    # Canonical format: t,tx,ty,tz,qw,qx,qy,qz
+    # Legacy format:    t,tx,ty,tz,qx,qy,qz,qw
+    mean_abs_col4 = float(np.mean(np.abs(arr[:, 4])))
+    mean_abs_col7 = float(np.mean(np.abs(arr[:, 7])))
+    canonical_qw_first = mean_abs_col4 >= mean_abs_col7
+    if canonical_qw_first:
+        return arr
+
+    # Reorder legacy -> canonical in-memory only.
+    out = arr.copy()
+    out[:, 4] = arr[:, 7]  # qw
+    out[:, 5] = arr[:, 4]  # qx
+    out[:, 6] = arr[:, 5]  # qy
+    out[:, 7] = arr[:, 6]  # qz
+    return out
 
 
 def save_pose_csv(path: Path, arr: np.ndarray) -> None:

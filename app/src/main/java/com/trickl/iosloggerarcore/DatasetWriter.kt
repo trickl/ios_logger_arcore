@@ -15,6 +15,8 @@ class DatasetWriter(baseDir: File) {
 
     private lateinit var framesWriter: BufferedWriter
     private lateinit var posesWriter: BufferedWriter
+    private lateinit var rawPosesWriter: BufferedWriter
+    private lateinit var filterDiagnosticsWriter: BufferedWriter
     private lateinit var accelWriter: BufferedWriter
     private lateinit var gyroWriter: BufferedWriter
     private lateinit var gpsWriter: BufferedWriter
@@ -31,6 +33,8 @@ class DatasetWriter(baseDir: File) {
         }
         framesWriter = BufferedWriter(FileWriter(File(datasetDir, "Frames.txt"), false))
         posesWriter = BufferedWriter(FileWriter(File(datasetDir, "ARposes.txt"), false))
+        rawPosesWriter = BufferedWriter(FileWriter(File(datasetDir, "ARposesRaw.txt"), false))
+        filterDiagnosticsWriter = BufferedWriter(FileWriter(File(datasetDir, "PoseFilterDiagnostics.txt"), false))
         accelWriter = BufferedWriter(FileWriter(File(datasetDir, "Accel.txt"), false))
         gyroWriter = BufferedWriter(FileWriter(File(datasetDir, "Gyro.txt"), false))
         gpsWriter = BufferedWriter(FileWriter(File(datasetDir, "GPS.txt"), false))
@@ -62,7 +66,7 @@ class DatasetWriter(baseDir: File) {
     }
 
     @Synchronized
-    fun writePose(ts: Double, tx: Double, ty: Double, tz: Double, qw: Double, qx: Double, qy: Double, qz: Double) {
+    fun writePose(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double) {
         posesWriter.write(
             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n".format(
                 Locale.US,
@@ -74,6 +78,41 @@ class DatasetWriter(baseDir: File) {
                 qx,
                 qy,
                 qz
+            )
+        )
+    }
+
+    @Synchronized
+    fun writeRawPose(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double) {
+        rawPosesWriter.write(
+            "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n".format(
+                Locale.US,
+                ts,
+                tx,
+                ty,
+                tz,
+                qw,
+                qx,
+                qy,
+                qz
+            )
+        )
+    }
+
+    @Synchronized
+    fun writeFilterDiagnostic(
+        ts: Double,
+        lagFrames: Int,
+        lagSeconds: Double,
+        corr: Double,
+    ) {
+        filterDiagnosticsWriter.write(
+            "%.6f,%d,%.6f,%.6f\n".format(
+                Locale.US,
+                ts,
+                lagFrames,
+                lagSeconds,
+                corr,
             )
         )
     }
@@ -208,6 +247,14 @@ class DatasetWriter(baseDir: File) {
         if (::posesWriter.isInitialized) {
             posesWriter.flush()
             posesWriter.close()
+        }
+        if (::rawPosesWriter.isInitialized) {
+            rawPosesWriter.flush()
+            rawPosesWriter.close()
+        }
+        if (::filterDiagnosticsWriter.isInitialized) {
+            filterDiagnosticsWriter.flush()
+            filterDiagnosticsWriter.close()
         }
         if (::accelWriter.isInitialized) {
             accelWriter.flush()

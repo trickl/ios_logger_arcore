@@ -15,10 +15,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
-import android.graphics.SurfaceTexture
 import android.view.Surface
-import android.view.TextureView
-import android.content.res.Configuration
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import kotlin.coroutines.resume
 
 class CaptureController(
@@ -36,7 +35,7 @@ class CaptureController(
     private var bytesTickerJob: Job? = null
     private var previewSurface: Surface? = null
     private var bootToUnixOffsetSeconds: Double = 0.0
-    private var latestPreviewView: TextureView? = null
+    private var latestPreviewView: SurfaceView? = null
     private var latestResolution: Size? = null
     private var hasCameraPermission: Boolean = false
 
@@ -55,7 +54,7 @@ class CaptureController(
     private val _datasetPath = MutableStateFlow<String?>(null)
     val datasetPath: StateFlow<String?> = _datasetPath.asStateFlow()
 
-    fun start(resolution: Size, previewView: TextureView) {
+    fun start(resolution: Size, previewView: SurfaceView) {
         if (_isRecording.value) return
         scope.launch {
             try {
@@ -160,10 +159,16 @@ class CaptureController(
         stopIdlePreview()
     }
 
-    fun updatePreview(previewView: TextureView, resolution: Size, hasPermission: Boolean) {
+    fun updatePreview(previewView: SurfaceView, resolution: Size, hasPermission: Boolean) {
         latestPreviewView = previewView
         latestResolution = resolution
         hasCameraPermission = hasPermission
+
+        if (hasPermission) {
+            if (!_isRecording.value) {
+                refreshPreviewSurfaceGeometry(previewView, resolution)
+            }
+        }
 
         if (_isRecording.value || !hasPermission) {
             stopIdlePreview()
@@ -183,53 +188,35 @@ class CaptureController(
         }
     }
 
-    private suspend fun awaitPreviewSurface(textureView: TextureView, resolution: Size): Surface {
-        val previewBufferSize = choosePreviewBufferSize(textureView, resolution)
-        if (textureView.isAvailable) {
-            textureView.surfaceTexture?.setDefaultBufferSize(previewBufferSize.width, previewBufferSize.height)
-            return Surface(textureView.surfaceTexture)
+    private suspend fun awaitPreviewSurface(surfaceView: SurfaceView, resolution: Size): Surface {
+        refreshPreviewSurfaceGeometry(surfaceView, resolution)
+
+        val holder = surfaceView.holder
+        if (holder.surface.isValid) {
+            return holder.surface
         }
 
-        val surfaceTexture = suspendCancellableCoroutine<SurfaceTexture> { cont ->
-            val listener = object : TextureView.SurfaceTextureListener {
-                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                    textureView.surfaceTextureListener = null
-                    cont.resume(surface)
+        return suspendCancellableCoroutine { cont ->
+            val callback = object : SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder) {
+                    holder.removeCallback(this)
+                    cont.resume(holder.surface)
                 }
 
-                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) = Unit
+                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
 
-                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = false
-
-                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+                override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
             }
 
-            textureView.surfaceTextureListener = listener
+            holder.addCallback(callback)
             cont.invokeOnCancellation {
-                if (textureView.surfaceTextureListener === listener) {
-                    textureView.surfaceTextureListener = null
-                }
+                holder.removeCallback(callback)
             }
         }
-
-        surfaceTexture.setDefaultBufferSize(previewBufferSize.width, previewBufferSize.height)
-        return Surface(surfaceTexture)
     }
 
-    private fun choosePreviewBufferSize(textureView: TextureView, captureResolution: Size): Size {
-        val orientation = context.resources.configuration.orientation
-        val captureLandscape = captureResolution.width >= captureResolution.height
-        val viewPortrait = if (textureView.isAvailable && textureView.height > 0 && textureView.width > 0) {
-            textureView.height >= textureView.width
-        } else {
-            orientation == Configuration.ORIENTATION_PORTRAIT
-        }
-
-        return if (viewPortrait && captureLandscape) {
-            Size(captureResolution.height, captureResolution.width)
-        } else {
-            captureResolution
-        }
+    private fun refreshPreviewSurfaceGeometry(surfaceView: SurfaceView, resolution: Size) {
+        surfaceView.holder.setFixedSize(resolution.width, resolution.height)
     }
 
     private fun ensureIdlePreviewIfNeeded() {

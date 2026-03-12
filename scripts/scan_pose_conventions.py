@@ -76,12 +76,30 @@ def parse_line(line: str) -> List[float]:
 
 
 def load_poses(path: Path) -> List[PoseRow]:
-    rows: List[PoseRow] = []
+    parsed: List[List[float]] = []
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             vals = parse_line(line)
             if vals:
-                rows.append(PoseRow(*vals))
+                parsed.append(vals)
+
+    rows: List[PoseRow] = []
+    if not parsed:
+        return rows
+
+    # Canonical format: t,tx,ty,tz,qw,qx,qy,qz
+    # Legacy format:    t,tx,ty,tz,qx,qy,qz,qw
+    mean_abs_col4 = sum(abs(v[4]) for v in parsed) / len(parsed)
+    mean_abs_col7 = sum(abs(v[7]) for v in parsed) / len(parsed)
+    canonical_qw_first = mean_abs_col4 >= mean_abs_col7
+
+    for vals in parsed:
+        if canonical_qw_first:
+            qw, qx, qy, qz = vals[4], vals[5], vals[6], vals[7]
+        else:
+            qx, qy, qz, qw = vals[4], vals[5], vals[6], vals[7]
+        rows.append(PoseRow(vals[0], vals[1], vals[2], vals[3], qw, qx, qy, qz))
+
     return rows
 
 

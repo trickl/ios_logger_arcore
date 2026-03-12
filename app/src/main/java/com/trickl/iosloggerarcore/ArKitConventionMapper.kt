@@ -3,19 +3,14 @@ package com.trickl.iosloggerarcore
 import kotlin.math.sqrt
 
 /**
- * Explicit pose-convention bridge from ARCore camera pose to the ARKit-style
- * output contract used by ios_logger (`ARposes.txt`):
+ * Explicit pose-convention bridge from ARCore camera pose to export contract
+ * used by ios_logger (`ARposes.txt`):
  *
- *   time_s, tx, ty, tz, qw, qx, qy, qz
+ *   time_s, tx, ty, tz, qx, qy, qz, qw
  *
  * Semantics target:
  * - camera-to-world transform (T_wc), not world-to-camera (T_cw)
  * - right-handed world frame, gravity-aligned Y-up
- * - quaternion scalar-first in output file
- *
- * IMPORTANT:
- * Runtime capture must emit downstream-compatible conventions directly in
- * ARposes* files (no post-processing step required).
  */
 object ArKitConventionMapper {
     // Baseline (h000) components.
@@ -27,6 +22,14 @@ object ArKitConventionMapper {
     private val arCoreToArKitBasisT: Array<DoubleArray> = transpose3x3(arCoreToArKitBasis)
     private val arCoreCameraToArKitCamera: Array<DoubleArray> = rotationZ3x3(degrees = -90.0)
     private val arCoreCameraToArKitCameraT: Array<DoubleArray> = transpose3x3(arCoreCameraToArKitCamera)
+    // Quaternion-compatible target camera basis in world coordinates:
+    // camera +X -> world -X, camera +Y -> world -Z, camera +Z -> world -Y.
+    // Columns are camera axes in world frame, det = +1 (proper rotation).
+    private val exportCameraBasisRemap: Array<DoubleArray> = arrayOf(
+        doubleArrayOf(-1.0, 0.0, 0.0),
+        doubleArrayOf(0.0, 0.0, -1.0),
+        doubleArrayOf(0.0, -1.0, 0.0),
+    )
 
     fun mapPose(
         timestampSeconds: Double,
@@ -49,14 +52,13 @@ object ArKitConventionMapper {
         // Baseline h000 mapping.
         val rWcBaselineBasis = multiply3x3(multiply3x3(arCoreToArKitBasis, rWcArCore), arCoreToArKitBasisT)
         val rWcBaseline = multiply3x3(rWcBaselineBasis, arCoreCameraToArKitCameraT)
+        val rWcExport = multiply3x3(rWcBaseline, exportCameraBasisRemap)
         val tBaseline = multiply3x1(arCoreToArKitBasis, doubleArrayOf(tx, ty, tz))
-        val mappedQuat = rotation3x3ToQuaternion(rWcBaseline)
+        val mappedQuat = rotation3x3ToQuaternion(rWcExport)
 
         return PoseSample(
             timestampSeconds = timestampSeconds,
-            // Translation-only lateral sign correction: image-aligned right/left motion
-            // is opposite of baseline exported X, so flip X while keeping Y/Z and
-            // quaternion mapping unchanged for axis-by-axis validation.
+            // Translation-only lateral sign correction kept as currently validated.
             tx = -tBaseline[0],
             ty = tBaseline[1],
             tz = tBaseline[2],

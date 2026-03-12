@@ -15,6 +15,8 @@ Options:
   --label <name>          Also copy dataset under ./pulled_datasets/labeled/<dataset>__<name>
   --sync                  Run sync-data.py after pull (if found)
   --sync-script <path>    Path to sync script (default: ../ios_logger/sync-data.py)
+  --quality-check         Run scripts/validate_capture_quality.py after pull (default: on)
+  --no-quality-check      Disable post-pull quality check
   --no-validate           Skip post-pull validation output
   -h, --help              Show this help
 
@@ -31,8 +33,10 @@ SRC_ROOT="/sdcard/Android/data/com.trickl.iosloggerarcore/files/datasets"
 DATASET=""
 DO_SYNC=0
 VALIDATE=1
+QUALITY_CHECK=1
 LABEL=""
 SYNC_SCRIPT="$(pwd)/../ios_logger/sync-data.py"
+QUALITY_SCRIPT="$(pwd)/scripts/validate_capture_quality.py"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,6 +67,14 @@ while [[ $# -gt 0 ]]; do
     --sync-script)
       SYNC_SCRIPT="$2"
       shift 2
+      ;;
+    --quality-check)
+      QUALITY_CHECK=1
+      shift
+      ;;
+    --no-quality-check)
+      QUALITY_CHECK=0
+      shift
       ;;
     --no-validate)
       VALIDATE=0
@@ -207,6 +219,24 @@ if [[ "$DO_SYNC" -eq 1 ]]; then
     python "$SYNC_SCRIPT" "$LOCAL_DATASET"
   else
     echo "ERROR: python interpreter not found for sync step" >&2
+    exit 1
+  fi
+fi
+
+if [[ "$QUALITY_CHECK" -eq 1 ]]; then
+  echo
+  echo "[quality] running: $QUALITY_SCRIPT --dataset $LOCAL_DATASET"
+  if [[ ! -f "$QUALITY_SCRIPT" ]]; then
+    echo "ERROR: quality script not found: $QUALITY_SCRIPT" >&2
+    exit 1
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 "$QUALITY_SCRIPT" --dataset "$LOCAL_DATASET"
+  elif command -v python >/dev/null 2>&1; then
+    python "$QUALITY_SCRIPT" --dataset "$LOCAL_DATASET"
+  else
+    echo "ERROR: python interpreter not found for quality check" >&2
     exit 1
   fi
 fi
