@@ -24,7 +24,7 @@
     <ID>LongParameterList:ArKitConventionMapper.kt$ArKitConventionMapper$( timestampSeconds: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double, )</ID>
     <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$( ts: Double, latitude: Double, longitude: Double, horizontalAccuracy: Double, altitude: Double, verticalAccuracy: Double, floorLevel: Int, course: Double, speed: Double, )</ID>
     <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$( ts: Double, rotX: Double, rotY: Double, rotZ: Double, gravX: Double, gravY: Double, gravZ: Double, userAccX: Double, userAccY: Double, userAccZ: Double, motionHeading: Double, )</ID>
-    <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double)</ID>
+    <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$(ts: Double, tx: Double, ty: Double, tz: Double, qw: Double, qx: Double, qy: Double, qz: Double)</ID>
     <ID>LongParameterList:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$( private val context: Context, private val resolution: Size, private val outputVideoFile: File, private val previewSurface: Surface?, private val bootToUnixOffsetSeconds: Double, private val datasetWriter: DatasetWriter, private val onStatus: (String) -&gt; Unit, private val onTrackingState: (String) -&gt; Unit, private val onStarted: () -&gt; Unit, private val onStopped: (String?) -&gt; Unit, private val poseMode: PoseMode = PoseMode.LEGACY_STITCH, )</ID>
     <ID>LongParameterList:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$( sourceFrameIndex: Long, sourceFrameTimestampNanos: Long, trackingState: TrackingState, relocalizationOrReset: Boolean, rawDelta: PoseDelta?, exportedDelta: PoseDelta?, exportedTranslationBreakdown: TranslationDeltaBreakdown?, )</ID>
     <ID>MagicNumber:ArKitConventionMapper.kt$ArKitConventionMapper$0.25</ID>
@@ -81,7 +81,6 @@
     <ID>MagicNumber:TimeUtils.kt$TimeUtils$1000.0</ID>
     <ID>MagicNumber:TimeUtils.kt$TimeUtils$1_000_000_000.0</ID>
     <ID>MaxLineLength:CameraResolutionSelector.kt$CameraResolutionSelector$"Requested capture resolution ${target.width}x${target.height} is not supported for MediaRecorder on cameraId=$cameraId. Top supported: $supported"</ID>
-    <ID>MaxLineLength:DatasetWriterTest.kt$DatasetWriterTest$assertTrue(poses.readText().contains("1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000"))</ID>
     <ID>MaxLineLength:MainActivity.kt$val</ID>
     <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, this, Looper.getMainLooper())</ID>
     <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, this, Looper.getMainLooper())</ID>

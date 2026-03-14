@@ -24,6 +24,11 @@ class CaptureController(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
 ) {
+    private companion object {
+        // Diagnostic artifact only. Keep disabled for normal captures.
+        private const val ENABLE_RAW_POSE_OUTPUT = false
+    }
+
     private val poseMode = SharedArCoreCaptureEngine.PoseMode.LEGACY_STITCH
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -65,7 +70,10 @@ class CaptureController(
                 stopIdlePreview()
 
                 val baseDir = File(context.getExternalFilesDir(null), "datasets")
-                datasetWriter = DatasetWriter(baseDir).also { it.open() }
+                datasetWriter = DatasetWriter(
+                    baseDir = baseDir,
+                    enableRawPoseOutput = ENABLE_RAW_POSE_OUTPUT,
+                ).also { it.open() }
                 _datasetPath.value = datasetWriter?.datasetDir?.absolutePath
                 _recordedBytes.value = 0L
 

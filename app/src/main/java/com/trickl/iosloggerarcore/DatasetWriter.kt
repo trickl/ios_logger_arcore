@@ -7,7 +7,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class DatasetWriter(baseDir: File) {
+class DatasetWriter(
+    baseDir: File,
+    private val enableRawPoseOutput: Boolean = false,
+) {
     private val folderName = SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss", Locale.US).format(Date())
     val datasetDir: File = File(baseDir, folderName)
 
@@ -15,7 +18,7 @@ class DatasetWriter(baseDir: File) {
 
     private lateinit var framesWriter: BufferedWriter
     private lateinit var posesWriter: BufferedWriter
-    private lateinit var rawPosesWriter: BufferedWriter
+    private var rawPosesWriter: BufferedWriter? = null
     private lateinit var filterDiagnosticsWriter: BufferedWriter
     private lateinit var accelWriter: BufferedWriter
     private lateinit var gyroWriter: BufferedWriter
@@ -33,7 +36,9 @@ class DatasetWriter(baseDir: File) {
         }
         framesWriter = BufferedWriter(FileWriter(File(datasetDir, "Frames.txt"), false))
         posesWriter = BufferedWriter(FileWriter(File(datasetDir, "ARposes.txt"), false))
-        rawPosesWriter = BufferedWriter(FileWriter(File(datasetDir, "ARposesRaw.txt"), false))
+        if (enableRawPoseOutput) {
+            rawPosesWriter = BufferedWriter(FileWriter(File(datasetDir, "ARposesRaw.txt"), false))
+        }
         filterDiagnosticsWriter = BufferedWriter(FileWriter(File(datasetDir, "PoseFilterDiagnostics.txt"), false))
         accelWriter = BufferedWriter(FileWriter(File(datasetDir, "Accel.txt"), false))
         gyroWriter = BufferedWriter(FileWriter(File(datasetDir, "Gyro.txt"), false))
@@ -84,7 +89,7 @@ class DatasetWriter(baseDir: File) {
 
     @Synchronized
     fun writeRawPose(ts: Double, tx: Double, ty: Double, tz: Double, qw: Double, qx: Double, qy: Double, qz: Double) {
-        rawPosesWriter.write(
+        rawPosesWriter?.write(
             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n".format(
                 Locale.US,
                 ts,
@@ -248,10 +253,11 @@ class DatasetWriter(baseDir: File) {
             posesWriter.flush()
             posesWriter.close()
         }
-        if (::rawPosesWriter.isInitialized) {
-            rawPosesWriter.flush()
-            rawPosesWriter.close()
+        rawPosesWriter?.let {
+            it.flush()
+            it.close()
         }
+        rawPosesWriter = null
         if (::filterDiagnosticsWriter.isInitialized) {
             filterDiagnosticsWriter.flush()
             filterDiagnosticsWriter.close()

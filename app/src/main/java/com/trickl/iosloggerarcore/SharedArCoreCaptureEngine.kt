@@ -150,13 +150,6 @@ class SharedArCoreCaptureEngine(
         val cameraDz: Double,
     )
 
-    private data class ExportPoseComponents(
-        val qw: Double,
-        val qx: Double,
-        val qy: Double,
-        val qz: Double,
-    )
-
     private data class IntrinsicsSnapshot(
         val raw: CameraIntrinsics,
         val mapped: CameraIntrinsics,
@@ -638,16 +631,15 @@ class SharedArCoreCaptureEngine(
             qw = q[3].toDouble(),
         )
 
-        val exportedPoseFixed = applyArposesUpAxisHalfTurnFix(exportedPose)
         datasetWriter.writePose(
             exportedPose.timestampSeconds,
             exportedPose.tx,
             exportedPose.ty,
             exportedPose.tz,
-            exportedPoseFixed.qw,
-            exportedPoseFixed.qx,
-            exportedPoseFixed.qy,
-            exportedPoseFixed.qz,
+            exportedPose.qw,
+            exportedPose.qx,
+            exportedPose.qy,
+            exportedPose.qz,
         )
 
         if (!firstPoseEventWritten) {
@@ -1052,16 +1044,15 @@ class SharedArCoreCaptureEngine(
             exportedTranslationBreakdown = exportedTranslationBreakdown,
         )
 
-        val continuityClampedPoseFixed = applyArposesUpAxisHalfTurnFix(continuityClampedPose)
         datasetWriter.writePose(
             continuityClampedPose.timestampSeconds,
             continuityClampedPose.tx,
             continuityClampedPose.ty,
             continuityClampedPose.tz,
-            continuityClampedPoseFixed.qw,
-            continuityClampedPoseFixed.qx,
-            continuityClampedPoseFixed.qy,
-            continuityClampedPoseFixed.qz,
+            continuityClampedPose.qw,
+            continuityClampedPose.qx,
+            continuityClampedPose.qy,
+            continuityClampedPose.qz,
         )
 
         if (!firstPoseEventWritten) {
@@ -1093,21 +1084,6 @@ class SharedArCoreCaptureEngine(
     }
 
     private fun exportedPoseTsForTransition(poseTs: Double): Double = poseTs
-
-    private fun applyArposesUpAxisHalfTurnFix(pose: PoseSample): ExportPoseComponents {
-        // Required by ARposes export contract:
-        // camera-to-world rotation post-multiply by Ry(pi), i.e. q' = q ⊗ q_fix,
-        // where q_fix (wxyz) = (0, 0, 1, 0).
-        val q = normalizeQuaternionWxyz(doubleArrayOf(pose.qw, pose.qx, pose.qy, pose.qz))
-        val qFix = doubleArrayOf(0.0, 0.0, 1.0, 0.0)
-        val qOut = normalizeQuaternionWxyz(multiplyQuaternionWxyzRaw(q, qFix))
-        return ExportPoseComponents(
-            qw = qOut[0],
-            qx = qOut[1],
-            qy = qOut[2],
-            qz = qOut[3],
-        )
-    }
 
     private fun shouldRejectDiscontinuity(rawDelta: PoseDelta?): Boolean {
         if (rawDelta == null) return false
