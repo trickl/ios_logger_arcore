@@ -66,7 +66,7 @@ class DatasetWriter(baseDir: File) {
     }
 
     @Synchronized
-    fun writePose(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double) {
+    fun writePose(ts: Double, tx: Double, ty: Double, tz: Double, qw: Double, qx: Double, qy: Double, qz: Double) {
         posesWriter.write(
             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n".format(
                 Locale.US,
@@ -83,7 +83,7 @@ class DatasetWriter(baseDir: File) {
     }
 
     @Synchronized
-    fun writeRawPose(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double) {
+    fun writeRawPose(ts: Double, tx: Double, ty: Double, tz: Double, qw: Double, qx: Double, qy: Double, qz: Double) {
         rawPosesWriter.write(
             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n".format(
                 Locale.US,

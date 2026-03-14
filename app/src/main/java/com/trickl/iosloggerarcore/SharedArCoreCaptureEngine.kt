@@ -644,10 +644,10 @@ class SharedArCoreCaptureEngine(
             exportedPose.tx,
             exportedPose.ty,
             exportedPose.tz,
+            exportedPoseFixed.qw,
             exportedPoseFixed.qx,
             exportedPoseFixed.qy,
             exportedPoseFixed.qz,
-            exportedPoseFixed.qw,
         )
 
         if (!firstPoseEventWritten) {
@@ -1015,10 +1015,10 @@ class SharedArCoreCaptureEngine(
             exportRelativePose.tx,
             exportRelativePose.ty,
             exportRelativePose.tz,
+            exportRelativePose.qw,
             exportRelativePose.qx,
             exportRelativePose.qy,
             exportRelativePose.qz,
-            exportRelativePose.qw,
         )
 
         updateAndLogFilterLagDiagnostics(
@@ -1058,10 +1058,10 @@ class SharedArCoreCaptureEngine(
             continuityClampedPose.tx,
             continuityClampedPose.ty,
             continuityClampedPose.tz,
+            continuityClampedPoseFixed.qw,
             continuityClampedPoseFixed.qx,
             continuityClampedPoseFixed.qy,
             continuityClampedPoseFixed.qz,
-            continuityClampedPoseFixed.qw,
         )
 
         if (!firstPoseEventWritten) {

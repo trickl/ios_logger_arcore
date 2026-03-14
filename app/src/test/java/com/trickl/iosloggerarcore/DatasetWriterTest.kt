@@ -20,7 +20,7 @@ class DatasetWriterTest {
             assertTrue(frames.exists())
             assertTrue(poses.exists())
             assertTrue(frames.readText().contains("1.000000,0,100.000000,100.000000,50.000000,50.000000"))
-            assertTrue(poses.readText().contains("1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000"))
+            assertTrue(poses.readText().contains("1.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000"))
         } finally {
             tempRoot.deleteRecursively()
         }
