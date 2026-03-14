@@ -23,7 +23,7 @@ class ArKitConventionMapperTest {
         )
 
         assertEquals(123.0, out.timestampSeconds, 1e-9)
-        assertEquals(-1.25, out.tx, 1e-9)
+        assertEquals(1.25, out.tx, 1e-9)
         assertEquals(-0.5, out.ty, 1e-9)
         assertEquals(2.0, out.tz, 1e-9)
     }

@@ -2,6 +2,30 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("io.gitlab.arturbosch.detekt")
+}
+
+detekt {
+    toolVersion = "1.23.8"
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$rootDir/config/detekt/baseline.xml")
+    buildUponDefaultConfig = true
+    allRules = false
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
+    reports {
+        html.required.set(true)
+        sarif.required.set(true)
+        txt.required.set(false)
+        xml.required.set(false)
+        md.required.set(false)
+    }
+}
+
+tasks.named("check") {
+    dependsOn("detekt")
 }
 
 android {

@@ -1,7 +1,9 @@
 package com.trickl.iosloggerarcore
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -22,6 +24,7 @@ import android.opengl.GLES20
 import android.util.Log
 import android.util.Size
 import android.view.Surface
+import androidx.core.content.ContextCompat
 import com.google.ar.core.Anchor
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
@@ -1118,6 +1121,7 @@ class SharedArCoreCaptureEngine(
             exportedDelta.rotationDegrees >= ACCEPTED_CONTINUITY_MAX_ROTATION_DEG
     }
 
+
     private fun computeFirstFrameRelativePose(currentWorldPose: PoseSample): PoseSample {
         if (firstReferenceWorldPose == null) {
             firstReferenceWorldPose = currentWorldPose
@@ -1126,7 +1130,7 @@ class SharedArCoreCaptureEngine(
                 event = "first_frame_reference_set",
                 details = String.format(
                     Locale.US,
-                    "tx=%.6f,ty=%.6f,tz=%.6f,qx=%.6f,qy=%.6f,qz=%.6f,qw=%.6f",
+                    "mode=offset_only,tx=%.6f,ty=%.6f,tz=%.6f,qx=%.6f,qy=%.6f,qz=%.6f,qw=%.6f",
                     currentWorldPose.tx,
                     currentWorldPose.ty,
                     currentWorldPose.tz,
@@ -1139,10 +1143,32 @@ class SharedArCoreCaptureEngine(
         }
 
         val ref = firstReferenceWorldPose ?: return currentWorldPose
-        val tRefInv = invertTransform(poseToTransform(ref))
-        val tCurrent = poseToTransform(currentWorldPose)
-        val tRelative = composeTransforms(tRefInv, tCurrent)
-        return transformToPoseSample(tRelative, currentWorldPose.timestampSeconds)
+
+        // Offset-only translation normalization (no axis re-basing / no rotation of translation).
+        val tx = currentWorldPose.tx - ref.tx
+        val ty = currentWorldPose.ty - ref.ty
+        val tz = currentWorldPose.tz - ref.tz
+
+        // Relative orientation to first frame so the first sample becomes identity before
+        // ARposes up-axis half-turn fix (which then yields the expected qFix convention).
+        val qRef = normalizeQuaternionWxyz(doubleArrayOf(ref.qw, ref.qx, ref.qy, ref.qz))
+        val qCurrent = normalizeQuaternionWxyz(
+            doubleArrayOf(currentWorldPose.qw, currentWorldPose.qx, currentWorldPose.qy, currentWorldPose.qz)
+        )
+        val qRel = normalizeQuaternionWxyz(
+            multiplyQuaternionWxyz(conjugateQuaternionWxyz(qRef), qCurrent)
+        )
+
+        return PoseSample(
+            timestampSeconds = currentWorldPose.timestampSeconds,
+            tx = tx,
+            ty = ty,
+            tz = tz,
+            qw = qRel[0],
+            qx = qRel[1],
+            qy = qRel[2],
+            qz = qRel[3],
+        )
     }
 
     private fun filterPoseDeterministic(previous: PoseSample?, current: PoseSample): PoseSample {
@@ -1419,6 +1445,12 @@ class SharedArCoreCaptureEngine(
         val session = arSession ?: throw IllegalStateException("ARCore session not initialized")
         val shared = sharedCamera ?: throw IllegalStateException("SharedCamera not initialized")
 
+        if (!hasCameraPermission()) {
+            onStatus("Start failed: CAMERA permission missing")
+            stopInternal("camera permission missing")
+            return
+        }
+
         val cameraId = session.cameraConfig.cameraId
         val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
@@ -1451,7 +1483,18 @@ class SharedArCoreCaptureEngine(
             cameraHandler
         )
 
-        cameraManager.openCamera(cameraId, wrappedDeviceCallback, cameraHandler)
+        try {
+            cameraManager.openCamera(cameraId, wrappedDeviceCallback, cameraHandler)
+        } catch (se: SecurityException) {
+            Log.e(tag, "openSharedCamera: CAMERA permission denied", se)
+            onStatus("Start failed: CAMERA permission denied")
+            stopInternal("camera permission denied")
+        }
+    }
+
+    private fun hasCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
     private fun createCaptureSession(device: CameraDevice) {
@@ -1538,7 +1581,7 @@ class SharedArCoreCaptureEngine(
             datasetWriter.writeEvent(
                 tsUnixSeconds = System.currentTimeMillis() / 1000.0,
                 event = "engine_started",
-                details = "shared_camera=true,pose_mode=${poseMode.name},first_frame_relative=$ENABLE_FIRST_FRAME_RELATIVE_EXPORT,filter=kalman,rotation_alpha=$ROTATION_SMOOTHING_ALPHA,timestamp_policy=frame_time"
+                details = "shared_camera=true,pose_mode=${poseMode.name},first_frame_relative=$ENABLE_FIRST_FRAME_RELATIVE_EXPORT,first_frame_relative_mode=offset_only,filter=kalman,rotation_alpha=$ROTATION_SMOOTHING_ALPHA,timestamp_policy=frame_time"
             )
             onStarted()
             onTrackingState("STARTED")

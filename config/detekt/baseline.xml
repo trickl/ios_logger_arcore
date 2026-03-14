@@ -1,0 +1,137 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$ENABLE_ANCHOR_COMPARISON &amp;&amp; !anchorComparisonDisabled &amp;&amp; captureAnchor == null &amp;&amp; trackingConsecutiveFrames &gt;= ANCHOR_CREATE_MIN_STABLE_FRAMES &amp;&amp; anchorCreateCooldownFrames == 0</ID>
+    <ID>ComplexCondition:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$finite &amp;&amp; positiveFocal &amp;&amp; principalInBounds &amp;&amp; srcDimsValid</ID>
+    <ID>ComplexCondition:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$srcWidth &lt;= 0 || srcHeight &lt;= 0 || dstWidth &lt;= 0 || dstHeight &lt;= 0</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt$@Composable private fun CaptureScreen(controller: CaptureController)</ID>
+    <ID>CyclomaticComplexMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun logIntrinsicsConsistency( tsUnixSeconds: Double, sourceFrameIndex: Long, snapshot: IntrinsicsSnapshot, )</ID>
+    <ID>CyclomaticComplexMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameAnchorMode( session: Session, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>CyclomaticComplexMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameLegacyMode( arFrameTimestampNanos: Long, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>CyclomaticComplexMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun stopInternal(reason: String?)</ID>
+    <ID>FunctionNaming:MainActivity.kt$@Composable private fun CaptureScreen(controller: CaptureController)</ID>
+    <ID>FunctionNaming:MainActivity.kt$@Composable private fun RecordButton(isRecording: Boolean, onClick: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable fun IosLoggerArcoreTheme( darkTheme: Boolean = false, content: @Composable () -&gt; Unit )</ID>
+    <ID>LargeClass:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine</ID>
+    <ID>LongMethod:CaptureController.kt$CaptureController$fun start(resolution: Size, previewView: SurfaceView)</ID>
+    <ID>LongMethod:MainActivity.kt$@Composable private fun CaptureScreen(controller: CaptureController)</ID>
+    <ID>LongMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrame(timestampNanos: Long)</ID>
+    <ID>LongMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameAnchorMode( session: Session, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>LongMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameLegacyMode( arFrameTimestampNanos: Long, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>LongMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun startRepeatingRequest(session: CameraCaptureSession)</ID>
+    <ID>LongMethod:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun stopInternal(reason: String?)</ID>
+    <ID>LongParameterList:ArKitConventionMapper.kt$ArKitConventionMapper$( timestampSeconds: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double, )</ID>
+    <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$( ts: Double, latitude: Double, longitude: Double, horizontalAccuracy: Double, altitude: Double, verticalAccuracy: Double, floorLevel: Int, course: Double, speed: Double, )</ID>
+    <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$( ts: Double, rotX: Double, rotY: Double, rotZ: Double, gravX: Double, gravY: Double, gravZ: Double, userAccX: Double, userAccY: Double, userAccZ: Double, motionHeading: Double, )</ID>
+    <ID>LongParameterList:DatasetWriter.kt$DatasetWriter$(ts: Double, tx: Double, ty: Double, tz: Double, qx: Double, qy: Double, qz: Double, qw: Double)</ID>
+    <ID>LongParameterList:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$( private val context: Context, private val resolution: Size, private val outputVideoFile: File, private val previewSurface: Surface?, private val bootToUnixOffsetSeconds: Double, private val datasetWriter: DatasetWriter, private val onStatus: (String) -&gt; Unit, private val onTrackingState: (String) -&gt; Unit, private val onStarted: () -&gt; Unit, private val onStopped: (String?) -&gt; Unit, private val poseMode: PoseMode = PoseMode.LEGACY_STITCH, )</ID>
+    <ID>LongParameterList:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$( sourceFrameIndex: Long, sourceFrameTimestampNanos: Long, trackingState: TrackingState, relocalizationOrReset: Boolean, rawDelta: PoseDelta?, exportedDelta: PoseDelta?, exportedTranslationBreakdown: TranslationDeltaBreakdown?, )</ID>
+    <ID>MagicNumber:ArKitConventionMapper.kt$ArKitConventionMapper$0.25</ID>
+    <ID>MagicNumber:ArKitConventionMapper.kt$ArKitConventionMapper$1e-12</ID>
+    <ID>MagicNumber:ArKitConventionMapper.kt$ArKitConventionMapper$3</ID>
+    <ID>MagicNumber:CameraResolutionSelector.kt$CameraResolutionSelector$10</ID>
+    <ID>MagicNumber:CameraResolutionSelector.kt$CameraResolutionSelector$1440</ID>
+    <ID>MagicNumber:CameraResolutionSelector.kt$CameraResolutionSelector$1920</ID>
+    <ID>MagicNumber:CaptureController.kt$CaptureController$1000</ID>
+    <ID>MagicNumber:CaptureController.kt$CaptureController$1000.0</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFF2B2B2B</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFF2E7D32</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFF5A5A5A</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFF8A2B2B</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFBDBDBD</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFC62828</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFCCCCCC</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFD8D8D8</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFE0E0E0</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFE53935</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFF2F2F2</ID>
+    <ID>MagicNumber:MainActivity.kt$0xFFF9A825</ID>
+    <ID>MagicNumber:MainActivity.kt$1024.0</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$1000.0</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$15.0</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$180f</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$3</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$35.0</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$360f</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$4</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$60.0</ID>
+    <ID>MagicNumber:MotionLocationSampler.kt$MotionLocationSampler$9</ID>
+    <ID>MagicNumber:PoseSampler.kt$PoseSampler$3</ID>
+    <ID>MagicNumber:PoseSampler.kt$PoseSampler$4</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$0.5</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$0.9995</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$10</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$100</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$10_000L</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$10_000_000</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$1_000_000L</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$1e-12</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$1e-6</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$1e-9</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$3</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$30</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$300</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$5</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$600</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$8</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine.PoseLagEstimator$0.5</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine.PoseLagEstimator$1e-12</ID>
+    <ID>MagicNumber:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine.PoseLagEstimator$8</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$1000.0</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$1_000_000_000.0</ID>
+    <ID>MaxLineLength:CameraResolutionSelector.kt$CameraResolutionSelector$"Requested capture resolution ${target.width}x${target.height} is not supported for MediaRecorder on cameraId=$cameraId. Top supported: $supported"</ID>
+    <ID>MaxLineLength:DatasetWriterTest.kt$DatasetWriterTest$assertTrue(poses.readText().contains("1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000"))</ID>
+    <ID>MaxLineLength:MainActivity.kt$val</ID>
+    <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, this, Looper.getMainLooper())</ID>
+    <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, this, Looper.getMainLooper())</ID>
+    <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:MotionLocationSampler.kt$MotionLocationSampler$writer.writeMotMagnFull(ts, magnet[0].toDouble(), magnet[1].toDouble(), magnet[2].toDouble(), event.accuracy)</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$"relocalization_count=%d,recoveredFromNonTracking=%s,pendingRelocalization=%s,pendingRelocalizationWithEvidence=%s,recoverySettled=%s,immediateRecoveryResetCandidate=%s,jumpSuspected=%s,severeJumpDetected=%s,jumpOnlyResetCandidate=%s,allowJumpOnly=%s,pose_mode=%s"</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$Log.w(tag, "processFrame(): session.update failed $errors times (${e::class.java.simpleName}: ${e.message})")</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$details = "shared_camera=true,pose_mode=${poseMode.name},first_frame_relative=$ENABLE_FIRST_FRAME_RELATIVE_EXPORT,first_frame_relative_mode=offset_only,filter=kalman,rotation_alpha=$ROTATION_SMOOTHING_ALPHA,timestamp_policy=frame_time"</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$if</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$val exportedTranslationBreakdown = computeTranslationDeltaBreakdown(previousExportedPoseRelative, continuityClampedPose)</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$}</ID>
+    <ID>MaxLineLength:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine.Companion$"T_wc_arcore_raw -&gt; B_arcore_to_arkit * T_wc * B^T -&gt; C_cam_roll_z_m90 -&gt; T_wc_arkit_raw -&gt; T_world_reanchor -&gt; T_wc_export"</ID>
+    <ID>ReturnCount:ArCorePoseSampler.kt$ArCorePoseSampler$fun pollPose(): PoseSample?</ID>
+    <ID>ReturnCount:ArCorePoseSampler.kt$ArCorePoseSampler$fun start(): Boolean</ID>
+    <ID>ReturnCount:CaptureController.kt$CaptureController$private fun ensureIdlePreviewIfNeeded()</ID>
+    <ID>ReturnCount:MotionLocationSampler.kt$MotionLocationSampler$private fun computeMagHeadingDeg(): Float</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$fun start(): Boolean</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun clampOutputStepToContinuity(previous: PoseSample?, candidate: PoseSample): PoseSample</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun ensureArCoreAvailable(activity: Activity): Boolean</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun makeGlCurrent()</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrame(timestampNanos: Long)</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameAnchorMode( session: Session, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun processFrameLegacyMode( arFrameTimestampNanos: Long, ts: Double, sourceFrame: Long, camera: com.google.ar.core.Camera, intrinsics: CameraIntrinsics?, )</ID>
+    <ID>ReturnCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine.PoseLagEstimator$private fun pearsonCorrelation(x: List&lt;Double&gt;, y: List&lt;Double&gt;): Double</ID>
+    <ID>SwallowedException:ArCorePoseSampler.kt$ArCorePoseSampler$e: SecurityException</ID>
+    <ID>ThrowsCount:CameraResolutionSelector.kt$CameraResolutionSelector$fun selectExactMediaRecorderResolution(context: Context, target: Size): Size</ID>
+    <ID>ThrowsCount:CameraResolutionSelector.kt$CameraResolutionSelector$fun selectFullPipelineResolution(context: Context): Size</ID>
+    <ID>ThrowsCount:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun runOnCameraThreadBlocking(action: () -&gt; Unit)</ID>
+    <ID>TooGenericExceptionCaught:ArCorePoseSampler.kt$ArCorePoseSampler$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CaptureController.kt$CaptureController$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:IdleCameraPreviewEngine.kt$IdleCameraPreviewEngine$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:IdleCameraPreviewEngine.kt$IdleCameraPreviewEngine.&lt;no name provided&gt;$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$t: Throwable</ID>
+    <ID>TooManyFunctions:DatasetWriter.kt$DatasetWriter</ID>
+    <ID>TooManyFunctions:MotionLocationSampler.kt$MotionLocationSampler : SensorEventListenerLocationListener</ID>
+    <ID>TooManyFunctions:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine</ID>
+    <ID>UnusedPrivateMember:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$private fun exportedPoseTsForTransition(poseTs: Double): Double</ID>
+    <ID>UnusedPrivateProperty:CaptureController.kt$CaptureController$private val lifecycleOwner: LifecycleOwner</ID>
+    <ID>UseCheckOrError:CameraResolutionSelector.kt$CameraResolutionSelector$throw IllegalStateException( "Failed to detect camera resolution: MediaRecorder output sizes unavailable for cameraId=$cameraId" )</ID>
+    <ID>UseCheckOrError:CameraResolutionSelector.kt$CameraResolutionSelector$throw IllegalStateException( "Failed to detect camera resolution: SCALER_STREAM_CONFIGURATION_MAP unavailable for cameraId=$cameraId" )</ID>
+    <ID>UseCheckOrError:CameraResolutionSelector.kt$CameraResolutionSelector$throw IllegalStateException( "Failed to detect camera resolution: empty MediaRecorder output sizes for cameraId=$cameraId" )</ID>
+    <ID>UseCheckOrError:CameraResolutionSelector.kt$CameraResolutionSelector$throw IllegalStateException( "Requested capture resolution ${target.width}x${target.height} is not supported for MediaRecorder on cameraId=$cameraId. Top supported: $supported" )</ID>
+    <ID>UseCheckOrError:CameraResolutionSelector.kt$CameraResolutionSelector$throw IllegalStateException("Failed to detect camera resolution: no camera ID available")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("ARCore session not initialized")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("Camera handler not initialized")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("CameraDevice not ready")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("SharedCamera not initialized")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("Timed out waiting for camera thread action")</ID>
+    <ID>UseCheckOrError:SharedArCoreCaptureEngine.kt$SharedArCoreCaptureEngine$throw IllegalStateException("eglMakeCurrent failed: 0x${Integer.toHexString(err)}")</ID>
+  </CurrentIssues>
+</SmellBaseline>

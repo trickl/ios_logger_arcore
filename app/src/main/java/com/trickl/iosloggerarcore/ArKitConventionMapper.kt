@@ -58,14 +58,13 @@ object ArKitConventionMapper {
 
         return PoseSample(
             timestampSeconds = timestampSeconds,
-            // Translation-only lateral sign correction kept as currently validated.
-            tx = -tBaseline[0],
+            tx = tBaseline[0],            
             ty = tBaseline[1],
-            tz = tBaseline[2],
-            qw = mappedQuat[3],
+            tz = tBaseline[2],            
             qx = mappedQuat[0],
             qy = mappedQuat[1],
             qz = mappedQuat[2],
+            qw = mappedQuat[3],
         )
     }
 

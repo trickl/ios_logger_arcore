@@ -1,6 +1,8 @@
 package com.trickl.iosloggerarcore
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -11,6 +13,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
+import androidx.core.content.ContextCompat
 
 class IdleCameraPreviewEngine(
     private val context: Context,
@@ -27,17 +30,32 @@ class IdleCameraPreviewEngine(
 
     fun start(): Boolean {
         return try {
-            cameraThread = HandlerThread("idle-camera-preview").also { it.start() }
-            cameraHandler = Handler(cameraThread!!.looper)
-
-            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val cameraId = chooseBackCameraId(cameraManager)
-            if (cameraId == null) {
-                onStatus("Preview unavailable: no back camera")
-                stop()
-                return false
+            if (!hasCameraPermission()) {
+                onStatus("Preview unavailable: CAMERA permission missing")
+                false
+            } else {
+                cameraThread = HandlerThread("idle-camera-preview").also { it.start() }
+                cameraHandler = Handler(cameraThread!!.looper)
+                openBackCamera()
             }
+        } catch (t: Throwable) {
+            Log.e(tag, "start() failed", t)
+            onStatus("Preview start failed: ${t.message ?: t::class.java.simpleName}")
+            stop()
+            false
+        }
+    }
 
+    private fun openBackCamera(): Boolean {
+        val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraId = chooseBackCameraId(cameraManager)
+        if (cameraId == null) {
+            onStatus("Preview unavailable: no back camera")
+            stop()
+            return false
+        }
+
+        return try {
             cameraManager.openCamera(
                 cameraId,
                 object : CameraDevice.StateCallback() {
@@ -66,11 +84,10 @@ class IdleCameraPreviewEngine(
                 },
                 cameraHandler
             )
-
             true
-        } catch (t: Throwable) {
-            Log.e(tag, "start() failed", t)
-            onStatus("Preview start failed: ${t.message ?: t::class.java.simpleName}")
+        } catch (se: SecurityException) {
+            Log.e(tag, "openCamera security exception", se)
+            onStatus("Preview unavailable: CAMERA permission denied")
             stop()
             false
         }
@@ -152,5 +169,10 @@ class IdleCameraPreviewEngine(
             }
         }
         return cameraManager.cameraIdList.firstOrNull()
+    }
+
+    private fun hasCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
     }
 }
