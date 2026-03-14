@@ -1106,7 +1106,7 @@ class SharedArCoreCaptureEngine(
                 event = "first_frame_reference_set",
                 details = String.format(
                     Locale.US,
-                    "mode=offset_only,tx=%.6f,ty=%.6f,tz=%.6f,qx=%.6f,qy=%.6f,qz=%.6f,qw=%.6f",
+                    "mode=world_offset_relative_quaternion,tx=%.6f,ty=%.6f,tz=%.6f,qx=%.6f,qy=%.6f,qz=%.6f,qw=%.6f",
                     currentWorldPose.tx,
                     currentWorldPose.ty,
                     currentWorldPose.tz,
@@ -1120,10 +1120,10 @@ class SharedArCoreCaptureEngine(
 
         val ref = firstReferenceWorldPose ?: return currentWorldPose
 
-        // Offset-only translation normalization (no axis re-basing / no rotation of translation).
-        val tx = currentWorldPose.tx - ref.tx
-        val ty = currentWorldPose.ty - ref.ty
-        val tz = currentWorldPose.tz - ref.tz
+    // Keep translation in world axes, only offset by first-frame origin.
+    val tx = currentWorldPose.tx - ref.tx
+    val ty = currentWorldPose.ty - ref.ty
+    val tz = currentWorldPose.tz - ref.tz
 
         // Relative orientation to first frame so the first sample becomes identity before
         // ARposes up-axis half-turn fix (which then yields the expected qFix convention).
@@ -1557,7 +1557,12 @@ class SharedArCoreCaptureEngine(
             datasetWriter.writeEvent(
                 tsUnixSeconds = System.currentTimeMillis() / 1000.0,
                 event = "engine_started",
-                details = "shared_camera=true,pose_mode=${poseMode.name},first_frame_relative=$ENABLE_FIRST_FRAME_RELATIVE_EXPORT,first_frame_relative_mode=offset_only,filter=kalman,rotation_alpha=$ROTATION_SMOOTHING_ALPHA,timestamp_policy=frame_time"
+                details =
+                    "shared_camera=true,pose_mode=${poseMode.name}," +
+                        "first_frame_relative=$ENABLE_FIRST_FRAME_RELATIVE_EXPORT," +
+                        "first_frame_relative_mode=world_offset_relative_quaternion," +
+                        "filter=kalman,rotation_alpha=$ROTATION_SMOOTHING_ALPHA," +
+                        "timestamp_policy=frame_time"
             )
             onStarted()
             onTrackingState("STARTED")

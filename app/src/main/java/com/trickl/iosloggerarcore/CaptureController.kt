@@ -26,7 +26,7 @@ class CaptureController(
 ) {
     private companion object {
         // Diagnostic artifact only. Keep disabled for normal captures.
-        private const val ENABLE_RAW_POSE_OUTPUT = false
+        private const val ENABLE_RAW_POSE_OUTPUT = true
     }
 
     private val poseMode = SharedArCoreCaptureEngine.PoseMode.LEGACY_STITCH
